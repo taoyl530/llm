@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import requests
 
 # %%
-dataset = "amazon"
-inter_file = "cloth_sport"
+dataset = "movies"
+inter_file = "book_movie"
 all_file = "itm_emb_np"
 domainA_file = "{}_A".format(all_file) # domain A file
 domainB_file = "{}_B".format(all_file) # domain B file
@@ -30,6 +30,15 @@ id_map = json.load(open("./handled/id_map.json"))
 item_num_dict = id_map["item_dict"]["item_count"]
 
 # %%
+profile_emb = []
+
+for user in range(1, len(inter_seq.keys())+1):
+    profile_emb.append(np.zeros(4096))
+profile_emb = np.array(profile_emb)
+
+pickle.dump(profile_emb, open("./handled/user_emb.pkl", "wb"))
+
+# %%
 user_inter = {}
 
 for user in tqdm(inter_seq.keys()):
@@ -37,7 +46,7 @@ for user in tqdm(inter_seq.keys()):
     meta_seq = copy.deepcopy(inter_seq[user][:-1])
     meta_domain = domain_seq[user][:-1]
 
-    meta_seq[meta_domain==1] = meta_seq[meta_domain==1] + item_num_dict["1"]
+    meta_seq[meta_domain==1] = meta_seq[meta_domain==1] + item_num_dict["0"]
 
     user_inter[user] = meta_seq
 
@@ -112,10 +121,10 @@ plt.hist(len_list)
 # ### Generate User Profile
 
 # %%
-url = ""
+url = "https://chatapi.littlewheat.com/v1/chat/completions"
 
 payload = json.dumps({
-   "model": "gpt-3.5-turbo-ca",
+   "model": "gpt-4.1-mini",
    "messages": [
        {
            "role": "user",
@@ -127,7 +136,7 @@ payload = json.dumps({
    "top_p": 1,
 })
 headers = {
-   'Authorization': '',
+   'Authorization': 'Bearer sk-L7XOrSKuS5sfsoNYkmj3rSyLahhwBdtG1iefI8xTXFaJ8Oh0',
    'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
    'Content-Type': 'application/json'
 }
@@ -148,10 +157,10 @@ response = requests.request("POST", url, headers=headers, data=payload)
 
 # %%
 def get_response(prompt):
-    url = ""
+    url = "https://chatapi.littlewheat.com/v1/chat/completions"
 
     payload = json.dumps({
-    "model": "gpt-3.5-turbo-ca",
+    "model": "gpt-4.1-mini",
     "messages": [
        {
            "role": "user",
@@ -163,7 +172,7 @@ def get_response(prompt):
     "top_p": 1,
     })
     headers = {
-    'Authorization': '',
+    'Authorization': 'Bearer sk-L7XOrSKuS5sfsoNYkmj3rSyLahhwBdtG1iefI8xTXFaJ8Oh0',
     'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
     'Content-Type': 'application/json'
     }
@@ -198,13 +207,14 @@ if os.path.exists("./handled/user_profile.pkl"):
 else:
     user_profile = {}
 
+# %%
 while 1:
     try:
         for i, (user, partition_inter) in enumerate(tqdm(partitioned_user_inter.items())):
             
             if user in user_profile.keys():
                 continue
-            
+
             partition_pref = []
             for meta_inter in partition_inter:
                 if len(meta_inter) > 0:
@@ -229,9 +239,10 @@ while 1:
 
             user_profile[user] = summary
 
-            if i % 100 == 0:    # checkpoint
+            if i % 10 == 0:    # checkpoint
                 with open("./handled/user_profile.pkl", "wb") as f:
                     pickle.dump(user_profile, f)
+
     except:
         with open("./handled/user_profile.pkl", "wb") as f:
             pickle.dump(user_profile, f)
@@ -240,15 +251,16 @@ while 1:
         break
     
 
+# %%
 def get_embedding(prompt):
-    url = ""
+    url = "https://chatapi.littlewheat.com/v1/embeddings"
 
     payload = json.dumps({
-    "model": "text-embedding-ada-002",
+    "model": "text-embedding-3-large",
     "input": prompt
     })
     headers = {
-    'Authorization': '',
+    'Authorization': 'Bearer sk-L7XOrSKuS5sfsoNYkmj3rSyLahhwBdtG1iefI8xTXFaJ8Oh0',
     'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
     'Content-Type': 'application/json'
     }
@@ -258,22 +270,28 @@ def get_embedding(prompt):
 
     return re_json["data"][0]["embedding"]
 
-
-user_emb = {}
+# %%
+if os.path.exists("./handled/usr_profile_emb.pkl"):
+    user_emb = pickle.load(open("./handled/usr_profile_emb.pkl", "rb"))
+else:
+    user_emb = {}
 
 # %%
+i=0
 while 1:    # avoid broken due to internet connection
     try:
         for key, value in tqdm(user_profile.items()):
             if key not in user_emb.keys():
                 user_emb[key] = get_embedding(value)
+                i = i + 1
+            if i % 10 == 0:    # checkpoint
+                with open("./handled/usr_profile_emb.pkl", "wb") as f:
+                    pickle.dump(user_emb, f)
     except:
+        pickle.dump(user_emb, open("./handled/usr_profile_emb.pkl", "wb"))
         continue
     if len(user_emb) == len(user_profile):
         break
-
-# %%
-len(user_emb)
 
 # %%
 emb_list = []
@@ -282,4 +300,5 @@ for key, value in tqdm(user_emb.items()):
 
 emb_list = np.array(emb_list)
 pickle.dump(emb_list, open("./handled/usr_profile_emb.pkl", "wb"))
+
 

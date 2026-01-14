@@ -17,21 +17,14 @@ true=True
 false=False
 def parse(path): # for Amazon
     g = gzip.open(path, 'rb')
-    inter_list = []
     for l in tqdm(g):
-        inter_list.append(json.loads(l.decode()))
-        # inter_list.append(eval(l))
-
-    return inter_list
-
+        # 使用 yield 变成生成器，每次只返回一条数据，不占用额外内存
+        yield json.loads(l.decode())
 
 def parse_meta(path): # for Amazon
     g = gzip.open(path, 'rb')
-    inter_list = []
     for l in tqdm(g):
-        inter_list.append(eval(l))
-
-    return inter_list
+        yield eval(l)
 
 
 # return (user item timestamp) sort in get_interaction
